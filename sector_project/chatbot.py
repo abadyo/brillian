@@ -492,6 +492,18 @@ for message in st.session_state.messages:
 
 if prompt := st.chat_input():
     st.chat_message("user").markdown(prompt)
+
+    # check api key
+    if (
+        st.session_state["sectors_api_key"] == ""
+        or st.session_state["groq_api_key"] == ""
+    ):
+        st.error(
+            "Please set your API Keys first before using the chatbot.",
+            icon="🔑",
+        )
+        st.stop()
+
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("assistant"):
         with st.status("🤓 Thonking your question..", expanded=False) as status:
