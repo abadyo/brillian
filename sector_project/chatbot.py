@@ -23,6 +23,10 @@ from langchain_community.tools import DuckDuckGoSearchRun
 # SECTORS_API_KEY = os.getenv("SECTORS_API_KEY")
 # GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+# get current directory
+current_dir = os.path.dirname(__file__)
+subsector = os.path.join(current_dir, "subsector.txt")
+
 if "sectors_api_key" not in st.session_state:
     st.session_state["sectors_api_key"] = ""
 if "groq_api_key" not in st.session_state:
@@ -50,15 +54,10 @@ def get_info(url):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        # print(response.json())
+        print(response.json())
         return response.json()
     except requests.exceptions.HTTPError as e:
-        return e
-
-
-# get current directory
-current_dir = os.path.dirname(__file__)
-subsector = os.path.join(current_dir, "subsector.txt")
+        return None
 
 
 def fuzzy_search_company_name(x):
@@ -75,13 +74,39 @@ def fuzzy_search_company_name(x):
         max = 0
         for key, value in dict.items():
             similarity = fuzz.ratio(x, value)
-            if similarity > max:
+            if similarity >= 90:
                 max = similarity
                 result = key
         if max < 90:
             return None
-        # print(result)
-        f.close()
+        return result
+
+
+def fuzzy_search_symbol(x):
+    """
+    transform company name into symbol with fuzzy search
+    :param x: company name
+    """
+
+    if x[-3:] == ".JK":
+        pass
+    else:
+        x = x + ".JK"
+
+    with open(os.path.join(current_dir, "company.json")) as f:
+        dict = {}
+        data = json.load(f)
+        for i in data:
+            dict[i["symbol"]] = i["company_name"]
+
+        max = 0
+        for key, value in dict.items():
+            similarity = fuzz.ratio(x, key)
+            if similarity >= 90:
+                max = similarity
+                result = key
+        if max < 90:
+            return None
         return result
 
 
@@ -95,9 +120,9 @@ def fuzzy_search_subsector(x):
             if score > max:
                 max = score
                 match = sector
+        if max < 90:
+            return None
         return match
-    if x == "":
-        return None
 
 
 def is_it_holiday(x):
@@ -114,7 +139,7 @@ def is_it_holiday(x):
         x += dt.timedelta(days=1)
 
     x = x.strftime("%Y-%m-%d")
-    print(x)
+    # print(x)
     return x
 
 
@@ -138,15 +163,23 @@ def get_company_information_ai(
         - Ownership: Distribution of the companys ownership. [major shareholder, ownership percentage, monthly net transaction]
     :param company_name: company name that ends with Tbk.
     """
-    print("hello1")
+    # print("hello1")
     if symbol:
-        pass
+        symbol = fuzzy_search_symbol(symbol)
+        print(symbol)
+        if symbol is None:
+            return {"error": "Symbol not found."}
     elif company_name is not None and company_name != "":
         symbol = fuzzy_search_company_name(company_name)
-
-    print("hello2")
+        print(symbol)
+        if symbol is None:
+            return {"error": "Company name not found."}
+    # print("hello2")
     url = f"https://api.sectors.app/v1/company/report/{symbol}/?sections={section.lower()}"
-    return get_info(url)
+
+    x = get_info(url)
+    print(x)
+    return x
 
 
 @tool
@@ -165,9 +198,12 @@ def get_top_transaction_volume_ai(
 
     :return: List of top n company by transaction volume {date: [symbol, company_name, valume, price]}
     """
+    messege = ""
 
     if sub_sector:
         sub_sector = fuzzy_search_subsector(sub_sector)
+        if sub_sector is None:
+            return {"error": "Subsector not found."}
 
     def sum_volume_price(x):
         result = {}
@@ -194,11 +230,15 @@ def get_top_transaction_volume_ai(
         # result = dict(list(result.items())[:n])
         return result
 
-    # start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
-    # end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    a = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    b = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
 
     start_date = is_it_holiday(start_date)
     end_date = is_it_holiday(end_date)
+
+    # check if date change
+    if a != start_date or b != end_date:
+        messege = f"Date changed to {start_date} - {end_date} because the original date is holiday"
 
     if sub_sector == "" or sub_sector is None:
         url = f"https://api.sectors.app/v1/most-traded/?start={start_date}&end={end_date}&n_stock={n}"
@@ -206,7 +246,10 @@ def get_top_transaction_volume_ai(
         url = f"https://api.sectors.app/v1/most-traded/?start={start_date}&end={end_date}&n_stock={n}&sub_sector={'-'.join(sub_sector.lower().split())}"
     # print(url)
     x = get_info(url)
-    return sum_volume_price(x)
+    if x is None:
+        return {"error": "Data not found."}
+    z = sum_volume_price(x)
+    return [z, messege]
 
 
 @tool
@@ -229,12 +272,25 @@ def get_daily_transaction_ai(
 
     :return: List of daily transaction data [symbol, date, close, volume, market_cap]
     """
+    messege = ""
 
+    if symbol:
+        symbol = fuzzy_search_symbol(symbol)
+        if symbol is None:
+            return {"error": "Symbol not found."}
     if company_name is not None and company_name != "":
         symbol = fuzzy_search_company_name(company_name)
+        if symbol is None:
+            return {"error": "Company name not found."}
+
+    a = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    b = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
 
     start_date = is_it_holiday(start_date)
     end_date = is_it_holiday(end_date)
+
+    if a != start_date or b != end_date:
+        messege = f"Date changed to {start_date} - {end_date} because the original date is holiday"
 
     url = (
         f"https://api.sectors.app/v1/daily/{symbol}/?start={start_date}&end={end_date}"
@@ -346,7 +402,7 @@ def get_daily_transaction_ai(
             "volume values": volume,
             "close values": close,
         }
-        return dicti
+        return [dicti, messege]
 
 
 @tool
@@ -360,6 +416,8 @@ def get_performance_of_company_since_ipo_listing_ai(symbol: str):
 
     url = f"https://api.sectors.app/v1/listing-performance/{symbol}/"
     x = get_info(url)
+    if x is None:
+        return {"error": "Data not found."}
 
     # convert to %
     if x["chg_7d"] is not None:
@@ -376,7 +434,7 @@ def get_performance_of_company_since_ipo_listing_ai(symbol: str):
     x["change_in_90_days"] = x.pop("chg_90d")
     x["change_in_365_days"] = x.pop("chg_365d")
 
-    print(x)
+    # print(x)
     # change float to percentage exept symbol
     return x
 
@@ -396,14 +454,18 @@ def subsector_aggregated_setail_statistics(sub_sector: str, section: str = None)
 
     :return: Aggregated statistics of a subsector
     """
-    print(sub_sector)
+    # print(sub_sector)
     sub_sector = fuzzy_search_subsector(sub_sector)
+    if sub_sector is None:
+        return {"error": "Subsector not found."}
 
     if section:
         url = f"https://api.sectors.app/v1/subsector/report/{sub_sector}/?sections={section.lower()}"
     else:
         url = f"https://api.sectors.app/v1/subsector/report/{sub_sector}/"
     x = get_info(url)
+    if x is None:
+        return {"error": "Data not found."}
     return x
 
 
@@ -416,9 +478,12 @@ def get_change_percentage_from_two_number(first, last):
 
     extract number from string
     """
-    last = float(last)
-    first = float(first)
-    return ((last - first) / first) * 100
+    try:
+        last = float(last)
+        first = float(first)
+        return ((last - first) / first) * 100
+    except Exception as e:
+        return {"error": "Cannot calculate the change percentage."}
 
 
 @tool
@@ -428,10 +493,13 @@ def get_average_from_a_list_of_number(numbers):
     :param numbers: list of numbers, format: [1, 2, 3, 4, 5].
     """
     # convert
-    if type(numbers) == str:
-        numbers = ast.literal_eval(numbers)
-    numbers = [float(x) for x in numbers]
-    return sum(numbers) / len(numbers)
+    try:
+        if type(numbers) == str:
+            numbers = ast.literal_eval(numbers)
+        numbers = [float(x) for x in numbers]
+        return sum(numbers) / len(numbers)
+    except Exception as e:
+        return {"error": "Cannot calculate the average."}
 
 
 ##################################################################
@@ -468,7 +536,10 @@ def LLM_Chat():
                 if human ask about company, use get_company_information_ai with its symbol either from input or output of other tools to get the information about the company.
                 If two different tools were used, use the first tool and then, use the output to second tool get final result, and so on.
                 
-                answer as detailed as possible with included number if available, but don't call the plot function if it is not necessary. 
+                answer as detailed as possible with included number if available, but don't call the plot function if it is not necessary.
+                
+                Dont make random number up, use the tools provided and information from the previous output to calculate the answer.
+                use get_change_percentage_from_two_number to calculate the change percentage between two numbers. and use get_average_from_a_list_of_number to calculate the average of a list of numbers. 
                 
                 for last resort or available tools doesntt provide any answer, use DuckDuckGoSearchRun to search the answer.
                 """,
@@ -512,9 +583,10 @@ query_8 = "If i had invested into GOTO vs BREN on their respective IPO listing d
 query_9 = "Give me the 2nd place contact information of the top 3 companies by transaction volume on the 1st of july 2024"
 query_10 = "How much is the average of BBCA close price from 1st of august 2024 until 3 august 2024?"
 query_11 = "Show me the graph of BBRI closing price from 1st of august 2024 until 7 august 2024."
+query_12 = "What is the subsector of BBRI?"
+query_13 = "What is the ABCD.JK overview?"
 
-
-# queries = [query_10]
+# queries = [query_13]
 
 # for query in queries:
 #     print("Question:", query)
@@ -563,10 +635,8 @@ if prompt := st.chat_input():
                 # print(response)
                 status.update(label="💡 Eureka!", state="complete", expanded=False)
             except Exception as e:
-                st.error(
-                    f"Something wrong happened. Please try again later. Reason: {type(e).__name__}",
-                    icon="🚨",
-                )
+                st.error()
+                st.warning(f"Error occured. Please try again later. Reason: {e}")
                 print(e)
     if response:
         st.write(response["output"])
