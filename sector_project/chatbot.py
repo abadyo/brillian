@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from datetime import datetime
+import datetime as dt
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.memory import ConversationBufferMemory
 from langchain.memory import ConversationBufferWindowMemory
@@ -36,6 +37,9 @@ with st.sidebar:
 
     if button:
         st.write("API Keys set!")
+
+    st.link_button("Get Sectors API Key", "https://sectors.app/api")
+    st.link_button("Get Groq API Key", "https://console.groq.com/keys")
 
 
 def get_info(url):
@@ -94,6 +98,24 @@ def fuzzy_search_subsector(x):
         return match
     if x == "":
         return None
+
+
+def is_it_holiday(x):
+    """
+    Check if the date is holiday or not
+    :param x: date
+    """
+    x = datetime.strptime(x, "%Y-%m-%d")
+    a = x.weekday()
+
+    if a == 5:
+        x -= dt.timedelta(days=1)
+    elif a == 6:
+        x += dt.timedelta(days=1)
+
+    x = x.strftime("%Y-%m-%d")
+    print(x)
+    return x
 
 
 ##################################################################
@@ -172,8 +194,11 @@ def get_top_transaction_volume_ai(
         # result = dict(list(result.items())[:n])
         return result
 
-    start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    # start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    # end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+
+    start_date = is_it_holiday(start_date)
+    end_date = is_it_holiday(end_date)
 
     if sub_sector == "" or sub_sector is None:
         url = f"https://api.sectors.app/v1/most-traded/?start={start_date}&end={end_date}&n_stock={n}"
@@ -207,6 +232,9 @@ def get_daily_transaction_ai(
 
     if company_name is not None and company_name != "":
         symbol = fuzzy_search_company_name(company_name)
+
+    start_date = is_it_holiday(start_date)
+    end_date = is_it_holiday(end_date)
 
     url = (
         f"https://api.sectors.app/v1/daily/{symbol}/?start={start_date}&end={end_date}"
@@ -550,3 +578,6 @@ if prompt := st.chat_input():
             f"Something wrong happened. Please try again later.",
             icon="🚨",
         )
+
+# analyyze the trend of BBRI from 2022 until 2023
+# Compare close price of BBRI BMRI, BBCA in august 2024, which one should i buy
