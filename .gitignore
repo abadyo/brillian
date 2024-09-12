@@ -6,4 +6,14 @@ db_bri/
 myPayroll
 lab-visual/
 .DS_Store
-
+__pycache__
+repos
+tugas
+node_modules
+package-lock.json
+tailwind.config.js
+kelas
+sectors_ai
+tableau
+tes_kelas
+package.json
