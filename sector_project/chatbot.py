@@ -52,12 +52,17 @@ def get_info(url):
         return e
 
 
+# get current directory
+current_dir = os.path.dirname(__file__)
+subsector = os.path.join(current_dir, "subsector.txt")
+
+
 def fuzzy_search_company_name(x):
     """
     transform company name into symbol with fuzzy search
     :param x: company name
     """
-    with open("company.json") as f:
+    with open(os.path.join(current_dir, "company.json")) as f:
         dict = {}
         data = json.load(f)
         for i in data:
@@ -77,7 +82,7 @@ def fuzzy_search_company_name(x):
 
 
 def fuzzy_search_subsector(x):
-    with open("subsector.txt", "r") as file:
+    with open(os.path.join(current_dir, "subsector.txt"), "r") as file:
         sectors = file.read().splitlines()
         max = 0
         # fuzzy matching for the highest match
