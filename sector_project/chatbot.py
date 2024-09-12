@@ -333,14 +333,23 @@ def get_performance_of_company_since_ipo_listing_ai(symbol: str):
     url = f"https://api.sectors.app/v1/listing-performance/{symbol}/"
     x = get_info(url)
 
+    # convert to %
+    if x["chg_7d"] is not None:
+        x["chg_7d"] = f"{x['chg_7d'] * 100}%"
+    if x["chg_30d"] is not None:
+        x["chg_30d"] = f"{x['chg_30d'] * 100}%"
+    if x["chg_90d"] is not None:
+        x["chg_90d"] = f"{x['chg_90d'] * 100}%"
+    if x["chg_365d"] is not None:
+        x["chg_365d"] = f"{x['chg_365d'] * 100}%"
+
     x["change_in_7_days"] = x.pop("chg_7d")
     x["change_in_30_days"] = x.pop("chg_30d")
     x["change_in_90_days"] = x.pop("chg_90d")
     x["change_in_365_days"] = x.pop("chg_365d")
 
-    # change float to percentage
-    for key, value in x.items():
-        x[key] = f"{float(value) * 100}%"
+    print(x)
+    # change float to percentage exept symbol
     return x
 
 
