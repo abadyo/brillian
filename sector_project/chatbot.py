@@ -337,6 +337,10 @@ def get_performance_of_company_since_ipo_listing_ai(symbol: str):
     x["change_in_30_days"] = x.pop("chg_30d")
     x["change_in_90_days"] = x.pop("chg_90d")
     x["change_in_365_days"] = x.pop("chg_365d")
+
+    # change float to percentage
+    for key, value in x.items():
+        x[key] = f"{float(value) * 100}%"
     return x
 
 
