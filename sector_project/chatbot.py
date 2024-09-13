@@ -32,29 +32,71 @@ if "sectors_api_key" not in st.session_state:
 if "groq_api_key" not in st.session_state:
     st.session_state["groq_api_key"] = ""
 
+
+# query_0 = "BBRI Overview"
+query_1 = "What are the top 5 company by transaction volume on the first of this month?"
+query_2 = "What are the most traded stock yesterday?"
+query_3 = (
+    "What are the top 7 most traded stocks between 6th June to 10th June this year?"
+)
+query_4 = "What are the top 3 companies by transaction volume over the last 7 days?"  # gak konsisten atara pakai angka dan tidak
+query_5 = "Based on the closing prices of BBCA between 1st and 30th of June 2024, are we seeing an uptrend or downtrend? Try to explain why."
+query_6 = "What is the company with the largest market cap between BBCA and BREN? For said company, retrieve the email, phone number, listing date and website for further research."
+query_7 = "What is the performance of GOTO  since its IPO listing?"
+query_8 = "If i had invested into GOTO vs BREN on their respective IPO listing date, which one would have given me a better return over a 90 day horizon?"
+query_9 = "Give me the 2nd place contact information of the top 3 companies by transaction volume on the 1st of july 2024"
+query_10 = "How much is the average of BBCA close price from 1st of august 2024 until 3 august 2024?"
+query_11 = "Show me the graph of BBRI closing price from 1st of august 2024 until 7 august 2024."
+query_13 = "How many companies are in the subsector of oil and gas?"
+query_14 = "What is the ABCD.JK overview?"
+
+queries = [
+    query_1,
+    query_2,
+    query_3,
+    query_4,
+    query_5,
+    query_6,
+    query_7,
+    query_8,
+    query_9,
+    query_10,
+    query_11,
+    query_13,
+    query_14,
+]
+
 with st.sidebar:
     sectors_api_key = st.text_input(
         "Sectors API Key", key="sectors_api_key", type="password"
     )
     groq_api_key = st.text_input("Groq API Key", key="groq_api_key", type="password")
-    button = st.button("Set API Keys")
+
+    button = st.button("Reset API Keys")
 
     if button:
-        st.write("API Keys set!")
+        del st.session_state["sectors_api_key"]
+        del st.session_state["groq_api_key"]
 
-    st.link_button("Get Sectors API Key", "https://sectors.app/api")
-    st.link_button("Get Groq API Key", "https://console.groq.com/keys")
+    "[Get Sectors API Key](https://sectors.app/api)"
+    "[Get Groq API Key](https://console.groq.com/keys)"
+
+    for i in queries:
+        st.write(i)
 
 
 def get_info(url):
+    st.write("Fetching data from sectors..")
     print(url)
     headers = {
         "Authorization": f"{st.session_state['sectors_api_key']}",
     }
     try:
         response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        print(response.json())
+        print(response)
+        if response.status_code != 200:
+            return None
+        # print(response.json())
         return response.json()
     except requests.exceptions.HTTPError as e:
         return None
@@ -120,8 +162,6 @@ def fuzzy_search_subsector(x):
             if score > max:
                 max = score
                 match = sector
-        if max < 90:
-            return None
         return match
 
 
@@ -163,22 +203,23 @@ def get_company_information_ai(
         - Ownership: Distribution of the companys ownership. [major shareholder, ownership percentage, monthly net transaction]
     :param company_name: company name that ends with Tbk.
     """
+    st.write("Searching for company information..")
     # print("hello1")
     if symbol:
         symbol = fuzzy_search_symbol(symbol)
-        print(symbol)
+        # print(symbol)
         if symbol is None:
             return {"error": "Symbol not found."}
     elif company_name is not None and company_name != "":
         symbol = fuzzy_search_company_name(company_name)
-        print(symbol)
+        # print(symbol)
         if symbol is None:
             return {"error": "Company name not found."}
     # print("hello2")
     url = f"https://api.sectors.app/v1/company/report/{symbol}/?sections={section.lower()}"
 
     x = get_info(url)
-    print(x)
+    # print(x)
     return x
 
 
@@ -198,6 +239,7 @@ def get_top_transaction_volume_ai(
 
     :return: List of top n company by transaction volume {date: [symbol, company_name, valume, price]}
     """
+    st.write("Searching for top transaction volume..")
     messege = ""
 
     if sub_sector:
@@ -272,6 +314,8 @@ def get_daily_transaction_ai(
 
     :return: List of daily transaction data [symbol, date, close, volume, market_cap]
     """
+    st.write("Searching for daily transaction data..")
+
     messege = ""
 
     if symbol:
@@ -296,6 +340,8 @@ def get_daily_transaction_ai(
         f"https://api.sectors.app/v1/daily/{symbol}/?start={start_date}&end={end_date}"
     )
     if show_graph:
+        st.write("Generating graph..")
+
         x = get_info(url)
         df = pd.DataFrame(x)
         # print(df)
@@ -375,11 +421,15 @@ def get_daily_transaction_ai(
                     tooltip=["date", "market_cap"],
                 )
             )
-            return st.altair_chart(c, use_container_width=True)
+            st.write(st.altair_chart(c, use_container_width=True))
+            # return st.altair_chart(c, use_container_width=True)
+            return [df, messege]
         else:
             return None
     else:
         x = get_info(url)
+        if x is None or len(x) == 0:
+            return {"error": "Data not found."}
         df = pd.DataFrame(x)
         # get first and last date with its closing price, volume, and market cap
         first_date = df.iloc[0]
@@ -402,7 +452,11 @@ def get_daily_transaction_ai(
             "volume values": volume,
             "close values": close,
         }
-        return [dicti, messege]
+        return [
+            dicti,
+            messege
+            + " Use get_average_from_a_list_of_number to calculate the average of close, market_cap and use get_change_percentage_from_two_number to get change percentage. Dont make things up!.",
+        ]
 
 
 @tool
@@ -413,7 +467,7 @@ def get_performance_of_company_since_ipo_listing_ai(symbol: str):
 
     :return: Performance of the company since its IPO listing [symbol, change_7d, change_30d, change_90d, change_365d]
     """
-
+    st.write("Searching for company performance since IPO listing..")
     url = f"https://api.sectors.app/v1/listing-performance/{symbol}/"
     x = get_info(url)
     if x is None:
@@ -440,7 +494,7 @@ def get_performance_of_company_since_ipo_listing_ai(symbol: str):
 
 
 @tool
-def subsector_aggregated_setail_statistics(sub_sector: str, section: str = None):
+def subsector_aggregated_detail_statistics(sub_sector: str, section: str = None):
     """
     Get aggregated statistics of a subsector
     :param sub_sector: subsector name
@@ -455,6 +509,7 @@ def subsector_aggregated_setail_statistics(sub_sector: str, section: str = None)
     :return: Aggregated statistics of a subsector
     """
     # print(sub_sector)
+    st.write("Searching for subsector.statistics..")
     sub_sector = fuzzy_search_subsector(sub_sector)
     if sub_sector is None:
         return {"error": "Subsector not found."}
@@ -493,6 +548,7 @@ def get_average_from_a_list_of_number(numbers):
     :param numbers: list of numbers, format: [1, 2, 3, 4, 5].
     """
     # convert
+    st.write("Averaging numbers...")
     try:
         if type(numbers) == str:
             numbers = ast.literal_eval(numbers)
@@ -511,7 +567,7 @@ tools = [
     get_performance_of_company_since_ipo_listing_ai,
     get_change_percentage_from_two_number,
     get_average_from_a_list_of_number,
-    subsector_aggregated_setail_statistics,
+    subsector_aggregated_detail_statistics,
     DuckDuckGoSearchRun(name="search"),
 ]
 
@@ -522,7 +578,7 @@ memory = ConversationBufferWindowMemory(
 
 
 @st.cache_resource
-def LLM_Chat():
+def LLM_Chat(key):
     prompt = ChatPromptTemplate.from_messages(
         [
             (
@@ -552,9 +608,7 @@ def LLM_Chat():
         ]
     )
     llm = ChatGroq(
-        temperature=0,
-        model_name="llama-3.1-70b-versatile",
-        groq_api_key=st.session_state["groq_api_key"],
+        temperature=0, model_name="llama-3.1-70b-versatile", groq_api_key=key
     )
     agent = create_tool_calling_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(
@@ -569,22 +623,24 @@ def LLM_Chat():
 
 ##################################################################
 
-query_0 = "BBRI Overview"
-query_1 = "What are the top 5 company by transaction volume on the first of this month?"
-query_2 = "What are the most traded stock yesterday?"
-query_3 = (
-    "What are the top 7 most traded stocks between 6th June to 10th June this year?"
-)
-query_4 = "What are the top 3 companies by transaction volume over the last 7 days?"  # gak konsisten atara pakai angka dan tidak
-query_5 = "Based on the closing prices of BBCA between 1st and 30th of June 2024, are we seeing an uptrend or downtrend? Try to explain why."
-query_6 = "What is the company with the largest market cap between BBCA and BREN? For said company, retrieve the email, phone number, listing date and website for further research."
-query_7 = "What is the performance of GOTO  since its IPO listing?"
-query_8 = "If i had invested into GOTO vs BREN on their respective IPO listing date, which one would have given me a better return over a 90 day horizon?"
-query_9 = "Give me the 2nd place contact information of the top 3 companies by transaction volume on the 1st of july 2024"
-query_10 = "How much is the average of BBCA close price from 1st of august 2024 until 3 august 2024?"
-query_11 = "Show me the graph of BBRI closing price from 1st of august 2024 until 7 august 2024."
-query_12 = "What is the subsector of BBRI?"
-query_13 = "What is the ABCD.JK overview?"
+# Quey test
+
+# query_0 = "BBRI Overview"
+# query_1 = "What are the top 5 company by transaction volume on the first of this month?"
+# query_2 = "What are the most traded stock yesterday?"
+# query_3 = (
+#     "What are the top 7 most traded stocks between 6th June to 10th June this year?"
+# )
+# query_4 = "What are the top 3 companies by transaction volume over the last 7 days?"  # gak konsisten atara pakai angka dan tidak
+# query_5 = "Based on the closing prices of BBCA between 1st and 30th of June 2024, are we seeing an uptrend or downtrend? Try to explain why."
+# query_6 = "What is the company with the largest market cap between BBCA and BREN? For said company, retrieve the email, phone number, listing date and website for further research."
+# query_7 = "What is the performance of GOTO  since its IPO listing?"
+# query_8 = "If i had invested into GOTO vs BREN on their respective IPO listing date, which one would have given me a better return over a 90 day horizon?"
+# query_9 = "Give me the 2nd place contact information of the top 3 companies by transaction volume on the 1st of july 2024"
+# query_10 = "How much is the average of BBCA close price from 1st of august 2024 until 3 august 2024?"
+# query_11 = "Show me the graph of BBRI closing price from 1st of august 2024 until 7 august 2024."
+# query_12 = "What is the subsector of BBRI?"
+# query_13 = "What is the ABCD.JK overview?"
 
 # queries = [query_13]
 
@@ -596,8 +652,8 @@ query_13 = "What is the ABCD.JK overview?"
 
 ##################################################################
 
-st.title("🤑 :red[SECTORS.AI] Chatbot")
-st.markdown("Ask me anything about stock market and company information! feat. SECTORS")
+st.title("🚀 Sectors.:red[AI] Chatbot")
+st.markdown("Ask me anything about stock market and company information! feat. Sectors")
 st.divider()
 
 if "messages" not in st.session_state:
@@ -609,45 +665,61 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 if prompt := st.chat_input():
-    st.chat_message("user").markdown(prompt)
-
-    # check api key
-    if (
-        st.session_state["sectors_api_key"] == ""
-        or st.session_state["groq_api_key"] == ""
-    ):
-        st.error(
-            "Please set your API Keys first before using the chatbot.",
-            icon="🔑",
-        )
+    if not sectors_api_key or not groq_api_key:
+        st.info("Please set your API Keys first before using the chatbot.", icon="🔑")
         st.stop()
+    # print(st.session_state)
+    st.chat_message("user").markdown(prompt)
+    # # check api key
+    # if (
+    #     st.session_state["sectors_api_key"] == ""
+    #     or st.session_state["groq_api_key"] == ""
+    # ):
+    #     st.warning(
+    #         "Please set your API Keys first before using the chatbot.",
+    #         icon="🔑",
+    #     )
+    #     st.stop()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("assistant"):
-        with st.status("🤓 Thonking your question..", expanded=False) as status:
-            st_callback = StreamlitCallbackHandler(st.container())
-            model = LLM_Chat()
+        with st.status("🤓 Thonking your question..", expanded=True) as status:
             response = None
             try:
+                st_callback = StreamlitCallbackHandler(st.container())
+                model = LLM_Chat(st.session_state["groq_api_key"])
+                # print("BBBBBBBBBBBBBBBB")
                 response = model.invoke(
                     {"input": prompt}, callback_handler=[st_callback]
                 )
+                # print("CCCCCCCCCCCCCCCCCC")
                 # print(response)
                 status.update(label="💡 Eureka!", state="complete", expanded=False)
             except Exception as e:
-                st.error()
-                st.warning(f"Error occured. Please try again later. Reason: {e}")
-                print(e)
+                print(
+                    # "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                )
+                # status.update(
+                #     label=f"🚨 Error, Somethings wrong, reason {type(e).__name__}",
+                #     state="error",
+                #     expanded=False,
+                # )
+                # st.stop()
+                response = None
+                status.update(
+                    label=f"❌ {type(e).__name__}", state="error", expanded=False
+                )
     if response:
         st.write(response["output"])
         st.session_state.messages.append(
             {"role": "assistant", "content": response["output"]}
         )
     else:
-        st.error(
+        st.warning(
             f"Something wrong happened. Please try again later.",
             icon="🚨",
         )
+        st.stop()
 
 # analyyze the trend of BBRI from 2022 until 2023
 # Compare close price of BBRI BMRI, BBCA in august 2024, which one should i buy
