@@ -1,14 +1,5 @@
-<style>
-r { color: Red }
-o { color: Orange }
-g { color: Green }
-h1{ border-bottom: 0; }
-</style>
-
-# <center>🚀 Sectors.<r>AI</r></center>
-<center> Pocket size Financial Knowledge!</center>
-
-
+# 🚀 Sectors.AI
+Pocket size Financial Knowledge!
 
 ## 📚 Pre-requisites
 You need to have API keys for the following services:
