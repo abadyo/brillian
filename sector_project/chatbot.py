@@ -49,6 +49,7 @@ query_10 = "How much is the average of BBCA close price from 1st of august 2024 
 query_11 = "Show me the graph of BBRI closing price from 1st of august 2024 until 7 august 2024."
 query_13 = "How many companies are in the subsector of oil and gas?"
 query_14 = "What is the ABCD.JK overview?"
+query_15 = "Whos the top 5 total dividend in basic materials subsector"
 
 queries = [
     query_1,
@@ -64,6 +65,7 @@ queries = [
     query_11,
     query_13,
     query_14,
+    query_15,
 ]
 
 with st.sidebar:
@@ -525,6 +527,41 @@ def subsector_aggregated_detail_statistics(sub_sector: str, section: str = None)
 
 
 @tool
+def top_subsector_ranked_by_dividend_yield__market_cap__total_dividend__revenue__earnings(
+    classification: str, year: str, sub_sector: str, n: int = 5
+):
+    """
+    Return list of company n a given year that ranks top on a specified dimension (total_dividend, revenue, earnings, market_cap, dividend_yield)
+    :param classification: classification of the company. can be total_dividend, revenue, earnings, market_cap, dividend_yield
+    :param year: year of the data
+    :param n: number of top company
+    :param sub_sector: subsector name
+    """
+    st.write("Searching for top subsector ranking..")
+    year = str(year)
+
+    if classification not in [
+        "total_dividend",
+        "revenue",
+        "earnings",
+        "market_cap",
+        "dividend_yield",
+    ]:
+        return {"error": "Invalid classification."}
+
+    if sub_sector:
+        sub_sector = fuzzy_search_subsector(sub_sector)
+        if sub_sector is None:
+            return {"error": "Subsector not found."}
+
+    url = f"https://api.sectors.app/v1/companies/top/?classifications={classification}&n_stock={n}&year={year}&sub_sector={sub_sector}"
+    x = get_info(url)
+    if x is None:
+        return {"error": "Data not found."}
+    return x
+
+
+@tool
 def get_change_percentage_from_two_number(first, last):
     """
     Get change percentage between two numbers
@@ -568,6 +605,7 @@ tools = [
     get_change_percentage_from_two_number,
     get_average_from_a_list_of_number,
     subsector_aggregated_detail_statistics,
+    top_subsector_ranked_by_dividend_yield__market_cap__total_dividend__revenue__earnings,
     DuckDuckGoSearchRun(name="search"),
 ]
 
